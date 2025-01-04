@@ -1,6 +1,6 @@
 {
 	"name": "optipng-bin",
-	"version": "9.0.0",
+	"version": "9.1.0",
 	"description": "OptiPNG wrapper that makes it seamlessly available as a local dependency",
 	"license": "MIT",
 	"repository": "imagemin/optipng-bin",
@@ -10,7 +10,7 @@
 		"optipng": "cli.js"
 	},
 	"engines": {
-		"node": "^14.13.1 || >=16.0.0"
+		"node": "^14.13.1 || >=16.0.0 || >= 18.0.0 || >= 20.0.0 || >= 22.0.0"
 	},
 	"scripts": {
 		"postinstall": "node lib/install.js",
@@ -32,12 +32,12 @@
 		"optipng"
 	],
 	"dependencies": {
-		"bin-build": "^3.0.0",
-		"bin-wrapper": "^4.0.0"
+		"@xhmikosr/bin-wrapper": "^13.0.5",
+		"bin-build": "^3.0.0"
 	},
 	"devDependencies": {
+		"@xhmikosr/bin-check": "^7.0.3",
 		"ava": "^4.2.0",
-		"bin-check": "^4.0.1",
 		"compare-size": "^3.0.0",
 		"execa": "^6.1.0",
 		"tempy": "^3.0.0",

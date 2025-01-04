@@ -1,4 +1,4 @@
 node_modules
 yarn.lock
 vendor/optipng*
-vendor/man
+vendor/temp

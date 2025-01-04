@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 import test from 'ava';
 import {execa} from 'execa';
 import {temporaryDirectory} from 'tempy';
-import binCheck from 'bin-check';
+import binCheck from '@xhmikosr/bin-check';
 import binBuild from 'bin-build';
 import compareSize from 'compare-size';
 import optipng from '../index.js';
@@ -18,7 +18,7 @@ test('rebuild the optipng binaries', async t => {
 	}
 
 	const temporary = temporaryDirectory();
-	const source = fileURLToPath(new URL('../vendor/source/optipng.tar.gz', import.meta.url));
+	const source = fileURLToPath(new URL('../vendor/source/optipng-0.7.8.tar.gz', import.meta.url));
 
 	await binBuild.file(source, [
 		`./configure --with-system-zlib --prefix="${temporary}" --bindir="${temporary}"`,
