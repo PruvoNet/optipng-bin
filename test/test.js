@@ -32,8 +32,8 @@ test('return path to binary and verify that it is working', async t => {
 });
 
 test('minify a PNG', async t => {
-	const temporary = temporaryDirectory();
-	const sourcePath = fileURLToPath(new URL('fixtures/test.png', import.meta.url));
+	const temporary = tempy.directory();
+	const sourcePath = path.resolve(__dirname, 'fixtures/test.png');
 	const destinationPath = path.join(temporary, 'test.png');
 	const arguments_ = [
 		'-strip',
