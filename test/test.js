@@ -1,14 +1,13 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import process from 'node:process';
-import {fileURLToPath} from 'node:url';
-import test from 'ava';
-import {execa} from 'execa';
-import {temporaryDirectory} from 'tempy';
-import binCheck from '@xhmikosr/bin-check';
-import binBuild from 'bin-build';
-import compareSize from 'compare-size';
-import optipng from '../index.js';
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const test = require('ava');
+const execa = require('execa');
+const tempy = require('tempy');
+const binCheck = require('bin-check');
+const binBuild = require('bin-build');
+const compareSize = require('compare-size');
+const optipng = require('..');
 
 test('rebuild the optipng binaries', async t => {
 	// Skip the test on Windows
@@ -17,8 +16,8 @@ test('rebuild the optipng binaries', async t => {
 		return;
 	}
 
-	const temporary = temporaryDirectory();
-	const source = fileURLToPath(new URL('../vendor/source/optipng-0.7.8.tar.gz', import.meta.url));
+	const temporary = tempy.directory();
+	const source = path.resolve(__dirname, '../vendor/source/optipng-0.7.8.tar.gz');
 
 	await binBuild.file(source, [
 		`./configure --with-system-zlib --prefix="${temporary}" --bindir="${temporary}"`,

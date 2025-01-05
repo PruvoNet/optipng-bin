@@ -4,8 +4,6 @@
 	"description": "OptiPNG wrapper that makes it seamlessly available as a local dependency",
 	"license": "MIT",
 	"repository": "imagemin/optipng-bin",
-	"type": "module",
-	"exports": "./index.js",
 	"bin": {
 		"optipng": "cli.js"
 	},
@@ -32,11 +30,11 @@
 		"optipng"
 	],
 	"dependencies": {
-		"@xhmikosr/bin-wrapper": "^13.0.5",
+		"bin-wrapper": "https://github.com/PruvoNet/bin-wrapper#777f45f627304f25df016929d32b0f803821d297",
 		"bin-build": "^3.0.0"
 	},
 	"devDependencies": {
-		"@xhmikosr/bin-check": "^7.0.3",
+		"bin-check": "^4.0.1",
 		"ava": "^4.2.0",
 		"compare-size": "^3.0.0",
 		"execa": "^6.1.0",
