@@ -30,7 +30,7 @@
 		"optipng"
 	],
 	"dependencies": {
-		"bin-wrapper": "https://github.com/PruvoNet/bin-wrapper#777f45f627304f25df016929d32b0f803821d297",
+		"bin-wrapper": "https://github.com/PruvoNet/bin-wrapper#b8b03ce17a0abbfb8c11c2baea97c494c5e92518",
 		"bin-build": "^3.0.0"
 	},
 	"devDependencies": {
