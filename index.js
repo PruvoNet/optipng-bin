@@ -1,3 +1,3 @@
-import lib from './lib/index.js';
+import {BINARY_PATH} from './lib/binary.js';
 
-export default lib.path();
+export default BINARY_PATH;
