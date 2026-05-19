@@ -65,13 +65,16 @@ jobs:
           tmp=$(mktemp -d)
           tar -xzf "$SOURCE_ARCHIVE" -C "$tmp"
           cd "$tmp"/optipng-*
-          host_arg=""
+          # optipng has a custom (non-autotools) configure script that does
+          # NOT understand --host=. CFLAGS/LDFLAGS env vars with -arch
+          # x86_64 are enough — Apple clang produces x64 binaries and
+          # Rosetta 2 (preinstalled on macos-14) runs configure's test
+          # programs.
           if [ -n "${CROSS_ARCH:-}" ]; then
             export CFLAGS="-arch $CROSS_ARCH"
             export LDFLAGS="-arch $CROSS_ARCH"
-            host_arg="--host=$CROSS_ARCH-apple-darwin"
           fi
-          ./configure $host_arg --with-system-zlib
+          ./configure --with-system-zlib
           make -j"$(sysctl -n hw.ncpu)"
           strip src/optipng/optipng
           mkdir -p "$GITHUB_WORKSPACE/vendor"
@@ -133,7 +136,9 @@ jobs:
           tmp=$(mktemp -d)
           tar -xzf vendor/source/optipng-0.7.8.tar.gz -C "$tmp"
           cd "$tmp"/optipng-*
-          ./configure --with-system-zlib LDFLAGS="-static -static-libgcc"
+          # optipng's custom configure doesn't accept `LDFLAGS=...` as a
+          # positional arg; pass it through the environment instead.
+          LDFLAGS="-static -static-libgcc" ./configure --with-system-zlib
           make -j"$(nproc)"
           strip src/optipng/optipng.exe
           mkdir -p "$GITHUB_WORKSPACE/vendor"
