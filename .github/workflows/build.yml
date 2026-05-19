@@ -1,0 +1,216 @@
+name: build
+
+on:
+  push:
+    branches: [main, master, cjs]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  SOURCE_ARCHIVE: vendor/source/optipng-0.7.8.tar.gz
+
+jobs:
+  build:
+    name: ${{ matrix.id }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: darwin-x64
+            runner: macos-14
+            cross_arch: x86_64
+          - id: darwin-arm64
+            runner: macos-14
+          - id: linux-x64
+            runner: ubuntu-latest
+          - id: linux-x64-musl
+            runner: ubuntu-latest
+            musl: true
+          - id: linux-arm64
+            runner: ubuntu-24.04-arm
+          - id: linux-arm64-musl
+            runner: ubuntu-24.04-arm
+            musl: true
+          - id: win32-x64
+            runner: windows-latest
+            windows: true
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Read version
+        id: version
+        shell: bash
+        run: |
+          v=$(node -p "require('./package.json').version")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "tag=v$v"    >> "$GITHUB_OUTPUT"
+
+      # ── macOS ─ native arm64 OR x64 cross-built from arm64 ──
+      - name: Build (macOS)
+        if: startsWith(matrix.runner, 'macos')
+        env:
+          CROSS_ARCH: ${{ matrix.cross_arch }}
+        run: |
+          set -euo pipefail
+          tmp=$(mktemp -d)
+          tar -xzf "$SOURCE_ARCHIVE" -C "$tmp"
+          cd "$tmp"/optipng-*
+          host_arg=""
+          if [ -n "${CROSS_ARCH:-}" ]; then
+            export CFLAGS="-arch $CROSS_ARCH"
+            export LDFLAGS="-arch $CROSS_ARCH"
+            host_arg="--host=$CROSS_ARCH-apple-darwin"
+          fi
+          ./configure $host_arg --with-system-zlib
+          make -j"$(sysctl -n hw.ncpu)"
+          strip src/optipng/optipng
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          cp src/optipng/optipng "$GITHUB_WORKSPACE/out/"
+
+      # ── Linux glibc ──
+      - name: Build (Linux glibc)
+        if: startsWith(matrix.runner, 'ubuntu') && !matrix.musl
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -qq -y build-essential zlib1g-dev
+          tmp=$(mktemp -d)
+          tar -xzf "$SOURCE_ARCHIVE" -C "$tmp"
+          cd "$tmp"/optipng-*
+          ./configure --with-system-zlib
+          make -j"$(nproc)"
+          strip src/optipng/optipng
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          cp src/optipng/optipng "$GITHUB_WORKSPACE/out/"
+
+      # ── Linux musl via Alpine docker ──
+      - name: Build (Linux musl via Alpine docker)
+        if: matrix.musl
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD":/work -w /work \
+            alpine:3.20 sh -c '
+              set -e
+              apk add --no-cache build-base zlib-dev tar
+              tmp=$(mktemp -d)
+              tar -xzf vendor/source/optipng-0.7.8.tar.gz -C "$tmp"
+              cd "$tmp"/optipng-*
+              ./configure --with-system-zlib
+              make -j"$(nproc)"
+              strip src/optipng/optipng
+              mkdir -p /work/out
+              cp src/optipng/optipng /work/out/
+            '
+
+      # ── Windows via MSYS2 mingw ──
+      - name: Set up MSYS2
+        if: matrix.windows
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-zlib
+            make
+
+      - name: Build (Windows MSYS2)
+        if: matrix.windows
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          tmp=$(mktemp -d)
+          tar -xzf vendor/source/optipng-0.7.8.tar.gz -C "$tmp"
+          cd "$tmp"/optipng-*
+          ./configure --with-system-zlib LDFLAGS="-static -static-libgcc"
+          make -j"$(nproc)"
+          strip src/optipng/optipng.exe
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          cp src/optipng/optipng.exe "$GITHUB_WORKSPACE/out/"
+
+      - name: Smoke test
+        if: matrix.id != 'darwin-x64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ls -la out/
+          if [ -f out/optipng.exe ]; then
+            ./out/optipng.exe --version
+          else
+            ./out/optipng --version
+          fi
+
+      - name: Tarball
+        shell: bash
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          name="optipng-bin-${TAG}-${{ matrix.id }}.tar.gz"
+          tar -czf "artifacts/${name}" -C out .
+          ls -la artifacts/
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bin-${{ matrix.id }}
+          path: artifacts/*.tar.gz
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: auto-release on version bump
+    needs: build
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/cjs')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Read version from package.json
+        id: version
+        run: |
+          set -euo pipefail
+          v=$(node -p "require('./package.json').version")
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "tag=v$v"    >> "$GITHUB_OUTPUT"
+
+      - name: Check whether tag already exists on origin
+        id: check_tag
+        run: |
+          set -euo pipefail
+          tag="${{ steps.version.outputs.tag }}"
+          if git ls-remote --tags origin "refs/tags/$tag" | grep -q .; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Tag $tag already exists — nothing to release."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Tag $tag does not exist — will release."
+          fi
+
+      - if: steps.check_tag.outputs.exists == 'false'
+        uses: actions/download-artifact@v8
+        with:
+          pattern: bin-*
+          path: artifacts
+          merge-multiple: true
+
+      - if: steps.check_tag.outputs.exists == 'false'
+        run: ls -la artifacts/
+
+      - if: steps.check_tag.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ steps.version.outputs.tag }}
+          files: artifacts/*.tar.gz
+          generate_release_notes: true
+          fail_on_unmatched_files: true

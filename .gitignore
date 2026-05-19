@@ -1,4 +1,5 @@
 node_modules
+vendor/*
+!vendor/source
 yarn.lock
-vendor/optipng*
-vendor/temp
+.DS_Store

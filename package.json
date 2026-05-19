@@ -1,18 +1,24 @@
 {
 	"name": "optipng-bin",
-	"version": "9.1.1",
+	"version": "9.2.0",
 	"description": "OptiPNG wrapper that makes it seamlessly available as a local dependency",
 	"license": "MIT",
-	"repository": "imagemin/optipng-bin",
+	"repository": "PruvoNet/optipng-bin",
+	"type": "module",
+	"exports": "./index.js",
 	"bin": {
 		"optipng": "cli.js"
 	},
 	"engines": {
-		"node": "^14.13.1 || >=16.0.0 || >= 18.0.0 || >= 20.0.0 || >= 22.0.0"
+		"node": ">=18"
+	},
+	"binary": {
+		"host": "https://github.com",
+		"remote_path": "PruvoNet/optipng-bin/releases/download/v{version}"
 	},
 	"scripts": {
 		"postinstall": "node lib/install.js",
-		"test": "xo && ava --timeout=120s"
+		"test": "ava --timeout=120s"
 	},
 	"files": [
 		"index.js",
@@ -30,15 +36,10 @@
 		"optipng"
 	],
 	"dependencies": {
-		"bin-wrapper": "https://github.com/PruvoNet/bin-wrapper#b8b03ce17a0abbfb8c11c2baea97c494c5e92518",
 		"bin-build": "^3.0.0"
 	},
 	"devDependencies": {
-		"bin-check": "^4.0.1",
-		"ava": "^4.2.0",
-		"compare-size": "^3.0.0",
-		"execa": "^1.0.0",
-		"tempy": "^0.3.0",
-		"xo": "^0.48.0"
+		"ava": "^6.0.0",
+		"tempy": "^3.0.0"
 	}
 }

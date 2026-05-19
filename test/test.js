@@ -1,51 +1,26 @@
-'use strict';
-const fs = require('fs');
-const path = require('path');
-const test = require('ava');
-const execa = require('execa');
-const tempy = require('tempy');
-const binCheck = require('bin-check');
-const binBuild = require('bin-build');
-const compareSize = require('compare-size');
-const optipng = require('..');
+import fs from 'node:fs';
+import path from 'node:path';
+import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
+import test from 'ava';
+import {temporaryDirectory} from 'tempy';
+import optipng from '../index.js';
 
-test('rebuild the optipng binaries', async t => {
-	// Skip the test on Windows
-	if (process.platform === 'win32') {
-		t.pass();
-		return;
-	}
-
-	const temporary = tempy.directory();
-	const source = path.resolve(__dirname, '../vendor/source/optipng-0.7.8.tar.gz');
-
-	await binBuild.file(source, [
-		`./configure --with-system-zlib --prefix="${temporary}" --bindir="${temporary}"`,
-		'make install',
-	]);
-
-	t.true(fs.existsSync(path.join(temporary, 'optipng')));
+test('binary exists and reports a version', t => {
+	const result = spawnSync(optipng, ['--version'], {encoding: 'utf8'});
+	t.is(result.status, 0);
+	t.regex(result.stdout, /OptiPNG/i);
 });
 
-test('return path to binary and verify that it is working', async t => {
-	t.true(await binCheck(optipng, ['--version']));
-});
+test('minifies a png', t => {
+	const tmp = temporaryDirectory();
+	const src = fileURLToPath(new URL('fixtures/test.png', import.meta.url));
+	const dst = path.join(tmp, 'test.png');
 
-test('minify a PNG', async t => {
-	const temporary = tempy.directory();
-	const sourcePath = path.resolve(__dirname, 'fixtures/test.png');
-	const destinationPath = path.join(temporary, 'test.png');
-	const arguments_ = [
-		'-strip',
-		'all',
-		'-clobber',
-		'-out',
-		destinationPath,
-		sourcePath,
-	];
+	const result = spawnSync(optipng, ['-strip', 'all', '-clobber', '-out', dst, src]);
+	t.is(result.status, 0);
 
-	await execa(optipng, arguments_);
-	const result = await compareSize(sourcePath, destinationPath);
-
-	t.true(result[destinationPath] < result[sourcePath]);
+	const srcSize = fs.statSync(src).size;
+	const dstSize = fs.statSync(dst).size;
+	t.true(dstSize < srcSize, `expected ${dstSize} < ${srcSize}`);
 });
