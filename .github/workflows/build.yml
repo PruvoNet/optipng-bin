@@ -2,7 +2,7 @@ name: build
 
 on:
   push:
-    branches: [main, master, cjs]
+    branches: [master, main]
   pull_request:
   workflow_dispatch:
 
@@ -38,6 +38,11 @@ jobs:
           - id: win32-x64
             runner: windows-latest
             windows: true
+          - id: win32-arm64
+            runner: windows-11-arm
+            windows: true
+            msys2_msystem: CLANGARM64
+            msys2_install: mingw-w64-clang-aarch64-clang mingw-w64-clang-aarch64-zlib make
 
     steps:
       - uses: actions/checkout@v5
@@ -50,7 +55,7 @@ jobs:
           echo "version=$v" >> "$GITHUB_OUTPUT"
           echo "tag=v$v"    >> "$GITHUB_OUTPUT"
 
-      # ── macOS ─ native arm64 OR x64 cross-built from arm64 ──
+      # ── macOS ──
       - name: Build (macOS)
         if: startsWith(matrix.runner, 'macos')
         env:
@@ -69,8 +74,8 @@ jobs:
           ./configure $host_arg --with-system-zlib
           make -j"$(sysctl -n hw.ncpu)"
           strip src/optipng/optipng
-          mkdir -p "$GITHUB_WORKSPACE/out"
-          cp src/optipng/optipng "$GITHUB_WORKSPACE/out/"
+          mkdir -p "$GITHUB_WORKSPACE/vendor"
+          cp src/optipng/optipng "$GITHUB_WORKSPACE/vendor/"
 
       # ── Linux glibc ──
       - name: Build (Linux glibc)
@@ -85,17 +90,17 @@ jobs:
           ./configure --with-system-zlib
           make -j"$(nproc)"
           strip src/optipng/optipng
-          mkdir -p "$GITHUB_WORKSPACE/out"
-          cp src/optipng/optipng "$GITHUB_WORKSPACE/out/"
+          mkdir -p "$GITHUB_WORKSPACE/vendor"
+          cp src/optipng/optipng "$GITHUB_WORKSPACE/vendor/"
 
-      # ── Linux musl via Alpine docker ──
-      - name: Build (Linux musl via Alpine docker)
+      # ── Linux musl (build + test inside the same alpine container) ──
+      - name: Build + test (Linux musl via Alpine docker)
         if: matrix.musl
         run: |
           set -euo pipefail
           docker run --rm \
             -v "$PWD":/work -w /work \
-            alpine:3.20 sh -c '
+            node:24-alpine sh -c '
               set -e
               apk add --no-cache build-base zlib-dev tar
               tmp=$(mktemp -d)
@@ -104,21 +109,21 @@ jobs:
               ./configure --with-system-zlib
               make -j"$(nproc)"
               strip src/optipng/optipng
-              mkdir -p /work/out
-              cp src/optipng/optipng /work/out/
+              mkdir -p /work/vendor
+              cp src/optipng/optipng /work/vendor/
+              cd /work
+              npm install --ignore-scripts
+              npx ava --timeout=120s
             '
 
-      # ── Windows via MSYS2 mingw ──
+      # ── Windows MSYS2 (x64 mingw OR arm64 clang) ──
       - name: Set up MSYS2
         if: matrix.windows
         uses: msys2/setup-msys2@v2
         with:
-          msystem: MINGW64
+          msystem: ${{ matrix.msys2_msystem || 'MINGW64' }}
           update: true
-          install: >-
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-zlib
-            make
+          install: ${{ matrix.msys2_install || 'mingw-w64-x86_64-gcc mingw-w64-x86_64-zlib make' }}
 
       - name: Build (Windows MSYS2)
         if: matrix.windows
@@ -131,20 +136,26 @@ jobs:
           ./configure --with-system-zlib LDFLAGS="-static -static-libgcc"
           make -j"$(nproc)"
           strip src/optipng/optipng.exe
-          mkdir -p "$GITHUB_WORKSPACE/out"
-          cp src/optipng/optipng.exe "$GITHUB_WORKSPACE/out/"
+          mkdir -p "$GITHUB_WORKSPACE/vendor"
+          cp src/optipng/optipng.exe "$GITHUB_WORKSPACE/vendor/"
 
-      - name: Smoke test
-        if: matrix.id != 'darwin-x64'
+      - uses: actions/setup-node@v5
+        if: ${{ !matrix.musl }}
+        with:
+          node-version: '24.15.0'
+
+      - name: Install npm deps (skipping postinstall — binary already at vendor/)
+        if: ${{ !matrix.musl }}
+        shell: bash
+        run: npm install --ignore-scripts
+
+      - name: Test ${{ matrix.id }} binary
+        if: ${{ !matrix.musl }}
         shell: bash
         run: |
           set -euo pipefail
-          ls -la out/
-          if [ -f out/optipng.exe ]; then
-            ./out/optipng.exe --version
-          else
-            ./out/optipng --version
-          fi
+          ls -la vendor/
+          npx ava --timeout=120s
 
       - name: Tarball
         shell: bash
@@ -154,7 +165,7 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts
           name="optipng-bin-${TAG}-${{ matrix.id }}.tar.gz"
-          tar -czf "artifacts/${name}" -C out .
+          tar -czf "artifacts/${name}" -C vendor $(ls vendor | grep -E '^optipng(\.exe)?$')
           ls -la artifacts/
 
       - uses: actions/upload-artifact@v7
@@ -167,7 +178,7 @@ jobs:
   release:
     name: auto-release on version bump
     needs: build
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/cjs')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     permissions:
       contents: write
