@@ -1,6 +1,6 @@
 {
 	"name": "optipng-bin",
-	"version": "9.2.0",
+	"version": "9.2.1",
 	"description": "OptiPNG wrapper that makes it seamlessly available as a local dependency",
 	"license": "MIT",
 	"repository": "PruvoNet/optipng-bin",
